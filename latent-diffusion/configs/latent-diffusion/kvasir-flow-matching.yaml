@@ -12,12 +12,12 @@ model:
       params:
         input_size: 32
         patch_size: 2
-        in_channels: 4 # 3 (Latent) + 1 (Mask)
-        hidden_size: 768
-        depth: 12
-        num_heads: 12
-        use_rope: True # Enable RoPE
-        use_qknorm: True # Advanced features from LightningDiT
+        in_channels: 4
+        hidden_size: 1024
+        depth: 24
+        num_heads: 16
+        use_rope: True
+        use_qknorm: True
         use_swiglu: True
         use_rmsnorm: True
 
@@ -52,7 +52,7 @@ data:
       target: ldm.data.kvasir.KvasirSegTrain
       params:
         size: 128
-        data_csv: "/content/drive/MyDrive/01_data/data_train.txt" # data 경로 여기서 수정
+        data_csv: "/content/drive/MyDrive/01_data/data_train.txt"
         data_root: "/content/drive/MyDrive/01_data/images"
         segmentation_root: "/content/drive/MyDrive/01_data/masks"
     validation:

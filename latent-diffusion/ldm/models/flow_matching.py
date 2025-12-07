@@ -1,15 +1,17 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+import numpy as np
 from torchvision.utils import make_grid
 from ldm.util import instantiate_from_config
-from ldm.modules.diffusionmodules.util import timestep_embedding
+# from ldm.modules.diffusionmodules.util import timestep_embedding  <-- 이거 지우셔도 됩니다 (사용 안 함)
 
 class LatentFlowMatching(pl.LightningModule):
     def __init__(self,
                  dit_config,
                  first_stage_config,
-                 cond_stage_config=None, # Not used for mask concat but kept for compatibility
+                 cond_stage_config=None, 
                  learning_rate=1e-4,
                  monitor="val/loss",
                  latent_size=32,
@@ -19,12 +21,10 @@ class LatentFlowMatching(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=['first_stage_config', 'cond_stage_config'])
         
-        # 1. Load First Stage Model (VQ-VAE or Autoencoder)
+        # 1. Load First Stage Model
         self.first_stage_model = instantiate_from_config(first_stage_config)
         self.first_stage_model.eval()
-        self.first_stage_model.train = False
-        for param in self.first_stage_model.parameters():
-            param.requires_grad = False
+        self.first_stage_model.requires_grad_(False)
             
         # 2. Initialize DiT Model
         self.model = instantiate_from_config(dit_config)
@@ -36,21 +36,17 @@ class LatentFlowMatching(pl.LightningModule):
         self.mask_channels = mask_channels
 
     def get_input(self, batch, k):
-        # Image
         x = batch[k]
         if len(x.shape) == 3:
             x = x[..., None]
         x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
         
-        # Segmentation Mask (Condition)
         mask = batch["segmentation"]
         if len(mask.shape) == 3:
             mask = mask[..., None]
         mask = mask.permute(0, 3, 1, 2).float()
         
-        # Resize mask to latent size directly using nearest to keep binary nature if needed
-        # Assuming Latent is downsampled by factor f (e.g., 4 or 8)
-        # Here we resize strictly to self.latent_size
+        # Resize mask to latent size
         mask = F.interpolate(mask, size=(self.latent_size, self.latent_size), mode="nearest")
         
         return x, mask
@@ -66,10 +62,10 @@ class LatentFlowMatching(pl.LightningModule):
         return encoder_posterior.sample()
 
     def forward(self, x, mask):
-        # 1. Encode Image to Latent space (z_0: Data)
+        # 1. Encode Image (z_0: Data)
         with torch.no_grad():
             encoder_posterior = self.encode_first_stage(x)
-            z_0 = self.get_first_stage_encoding(encoder_posterior).detach() # Data
+            z_0 = self.get_first_stage_encoding(encoder_posterior).detach() 
         
         # 2. Sample Noise (z_1: Noise)
         z_1 = torch.randn_like(z_0)
@@ -78,22 +74,19 @@ class LatentFlowMatching(pl.LightningModule):
         bs = z_0.shape[0]
         t = torch.rand((bs,), device=self.device)
         
-        # 4. Flow Matching Interpolation (Optimal Transport Path)
-        # z_t = (1 - t) * z_0 + t * z_1
-        # t needs broadcasting
+        # 4. Flow Matching Interpolation
         t_b = t.view(bs, 1, 1, 1)
         z_t = (1 - t_b) * z_0 + t_b * z_1
         
-        # 5. Target Vector Field u_t
-        # d/dt (z_t) = z_1 - z_0
+        # 5. Target Vector Field
         target_v = z_1 - z_0
         
         # 6. Predict Vector Field
-        # Timestep embedding needed for DiT
-        # We produce sinusoidal embedding of dimension hidden_size of DiT
-        t_emb = timestep_embedding(t * 1000, self.model.t_embedder[0].in_features, repeat_only=False).to(self.device)
+        # [수정됨] 직접 임베딩을 만들지 않고, 시간 값(t * 1000)을 그대로 넘깁니다.
+        # LightningDiT 내부의 t_embedder가 이를 받아 처리합니다.
+        t_input = t * 1000 
         
-        pred_v = self.model(z_t, t_emb, mask)
+        pred_v = self.model(z_t, t_input, mask)
         
         # 7. Loss
         loss = F.mse_loss(pred_v, target_v)
@@ -122,33 +115,25 @@ class LatentFlowMatching(pl.LightningModule):
         x = x[:N]
         mask = mask[:N]
         
-        # Log inputs
         log["inputs"] = x
-        log["condition_mask"] = mask.repeat(1,3,1,1) # Make 3 channels for visualization
+        log["condition_mask"] = mask.repeat(1,3,1,1) 
         
-        # Sampling (Euler Method for Flow Matching)
-        # z_0 = z_1 + integral(v_pred dt) from 1 to 0
-        # Wait, our formulation is z_t = (1-t)z_0 + t z_1
-        # t goes from 0 (data) to 1 (noise).
-        # Generative process: t goes from 1 (noise) to 0 (data).
-        # ODE: dz/dt = v_pred(z, t).
-        # Discretization: z_{t-dt} = z_t - v_pred(z_t, t) * dt
-        
+        # Sampling (Euler Method)
         steps = 50
         dt = 1.0 / steps
-        z = torch.randn(N, self.channels, self.latent_size, self.latent_size, device=self.device) # Start from noise (t=1)
+        z = torch.randn(N, self.channels, self.latent_size, self.latent_size, device=self.device)
         
         for i in range(steps):
-            t_val = 1.0 - i * dt # t goes 1.0 -> 0.0
+            t_val = 1.0 - i * dt 
             t_batch = torch.full((N,), t_val, device=self.device)
-            t_emb = timestep_embedding(t_batch * 1000, self.model.t_embedder[0].in_features, repeat_only=False).to(self.device)
             
-            v_pred = self.model(z, t_emb, mask)
+            # [수정됨] 여기서도 임베딩 대신 시간 값을 그대로 넘깁니다.
+            t_input = t_batch * 1000
             
-            # Euler step: z_{next} = z_{curr} - v * dt
+            v_pred = self.model(z, t_input, mask)
+            
             z = z - v_pred * dt
             
-        # Decode Latents
         x_rec = self.first_stage_model.decode(z)
         log["samples"] = x_rec
         

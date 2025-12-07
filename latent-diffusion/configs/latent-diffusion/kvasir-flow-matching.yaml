@@ -52,10 +52,16 @@ data:
       target: ldm.data.kvasir.KvasirSegTrain
       params:
         size: 128
+        data_csv: "/content/drive/MyDrive/01_data/data_train.txt" # data 경로 여기서 수정
+        data_root: "/content/drive/MyDrive/01_data/images"
+        segmentation_root: "/content/drive/MyDrive/01_data/masks"
     validation:
       target: ldm.data.kvasir.KvasirSegEval
       params:
         size: 128
+        data_csv: "/content/drive/MyDrive/01_data/data_eval.txt"
+        data_root: "/content/drive/MyDrive/01_data/images"
+        segmentation_root: "/content/drive/MyDrive/01_data/masks"
 
 lightning:
   callbacks:

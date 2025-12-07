@@ -204,11 +204,11 @@ class Examples(SegmentationBase):
 
 # Kvasir train/eval (경로만 환경에 맞게)
 class KvasirSegTrain(SegmentationBase):
-    def __init__(self, size=None, random_crop=False, interpolation="bicubic"):
+    def __init__(self, data_csv, data_root, segmentation_root, size=None, random_crop=False, interpolation="bicubic"):
         super().__init__(
-            data_csv='../../../01_data/02_preproc/02_abnormal/P2/data_train.txt',
-            data_root='../../../01_data/02_preproc/02_abnormal/P2/images',
-            segmentation_root='../../../01_data/02_preproc/02_abnormal/P2/masks',
+            data_csv=data_csv,
+            data_root=data_root,
+            segmentation_root=segmentation_root,
             size=size,
             random_crop=random_crop,
             interpolation=interpolation,
@@ -217,11 +217,11 @@ class KvasirSegTrain(SegmentationBase):
 
 
 class KvasirSegEval(SegmentationBase):
-    def __init__(self, size=None, random_crop=False, interpolation="bicubic"):
+    def __init__(self, data_csv, data_root, segmentation_root, size=None, random_crop=False, interpolation="bicubic"):
         super().__init__(
-            data_csv='../../../01_data/02_preproc/02_abnormal/P2/data_eval.txt',
-            data_root='../../../01_data/02_preproc/02_abnormal/P2/images',
-            segmentation_root='../../../01_data/02_preproc/02_abnormal/P2/masks',
+            data_csv=data_csv,
+            data_root=data_root,
+            segmentation_root=segmentation_root,
             size=size,
             random_crop=random_crop,
             interpolation=interpolation,

@@ -1,0 +1,2 @@
+epoch,global_step,lr_abs,step,train/loss_simple_step,train/loss_step,train/loss_vlb_step
+0,49.0,4.900995165257882e-09,49,0.7965114116668701,0.7965114116668701,0.004829284735023975

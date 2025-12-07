@@ -181,9 +181,11 @@ class SegmentationBase(Dataset):
             processed = {"image": image, "mask": segmentation}
 
         example["image"] = (processed["image"] / 127.5 - 1.0).astype(np.float32)
-        segmentation = processed["mask"]
-        onehot = np.eye(self.n_labels)[segmentation]
-        example["segmentation"] = onehot
+        
+        # onehot encoding
+        # segmentation = np.squeeze(segmentation, axis=-1)
+        # onehot = np.eye(self.n_labels)[segmentation]
+        example["segmentation"] = processed["mask"][..., None].astype(np.float32)
         return example
 
 

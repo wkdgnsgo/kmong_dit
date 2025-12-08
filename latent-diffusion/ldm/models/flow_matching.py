@@ -5,7 +5,6 @@ import pytorch_lightning as pl
 import numpy as np
 from torchvision.utils import make_grid
 from ldm.util import instantiate_from_config
-# from ldm.modules.diffusionmodules.util import timestep_embedding  <-- 이거 지우셔도 됩니다 (사용 안 함)
 
 class LatentFlowMatching(pl.LightningModule):
     def __init__(self,
@@ -82,8 +81,6 @@ class LatentFlowMatching(pl.LightningModule):
         target_v = z_1 - z_0
         
         # 6. Predict Vector Field
-        # [수정됨] 직접 임베딩을 만들지 않고, 시간 값(t * 1000)을 그대로 넘깁니다.
-        # LightningDiT 내부의 t_embedder가 이를 받아 처리합니다.
         t_input = t * 1000 
         
         pred_v = self.model(z_t, t_input, mask)
@@ -126,8 +123,7 @@ class LatentFlowMatching(pl.LightningModule):
         for i in range(steps):
             t_val = 1.0 - i * dt 
             t_batch = torch.full((N,), t_val, device=self.device)
-            
-            # [수정됨] 여기서도 임베딩 대신 시간 값을 그대로 넘깁니다.
+
             t_input = t_batch * 1000
             
             v_pred = self.model(z, t_input, mask)

@@ -232,7 +232,7 @@ class LightningDiT(nn.Module):
     def __init__(
         self,
         input_size=32,
-        patch_size=2,
+        patch_size=1,
         in_channels=4, # 3 (Latent) + 1 (Mask)
         hidden_size=768,
         depth=12,
